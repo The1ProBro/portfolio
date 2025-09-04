@@ -1,0 +1,61 @@
+#!/usr/bin/env python3
+"""
+sha256check.py — Verify or compute the SHA-256 checksum of a file (Windows-friendly).
+Usage:
+  python sha256check.py "C:\path\to\file.iso"
+  python sha256check.py "C:\path\to\file.iso" --sha256 EXPECTED_HASH
+"""
+
+import argparse, hashlib, sys
+from pathlib import Path
+
+def sha256_file(path: Path, chunk_size: int = 1024 * 1024) -> str:
+    h = hashlib.sha256()
+    total = path.stat().st_size
+    done = 0
+    with path.open("rb") as f:
+        while True:
+            chunk = f.read(chunk_size)
+            if not chunk:
+                break
+            h.update(chunk)
+            done += len(chunk)
+            # lightweight progress indicator
+            percent = (done / total * 100) if total else 100
+            print(f"\rProgress: {percent:6.2f}%", end="", flush=True)
+    print()  # newline after progress
+    return h.hexdigest()
+
+def main():
+    ap = argparse.ArgumentParser(description="Compute/verify SHA-256 of a file.")
+    ap.add_argument("file", type=str, help="Path to the file")
+    ap.add_argument("--sha256", type=str, help="Expected SHA-256 to verify against", default=None)
+    ap.add_argument("--open", action="store_true",
+                    help="Open your GitHub profile in the default browser after running")
+    ap.add_argument("--github", type=str, default="https://github.com/YOURUSER",
+                    help="Your GitHub profile URL (used with --open)")
+    args = ap.parse_args()
+
+    p = Path(args.file).expanduser()
+    if not p.exists() or not p.is_file():
+        print(f"Error: file not found: {p}", file=sys.stderr)
+        sys.exit(2)
+
+    print(f"Computing SHA-256 for: {p}")
+    digest = sha256_file(p)
+    print(f"SHA-256: {digest}")
+
+    if args.sha256:
+        expected = args.sha256.strip().lower()
+        ok = (digest.lower() == expected)
+        print(f"Match: {ok}")
+        if not ok:
+            print("Note: Hashes differ. Ensure you copied the correct expected hash.", file=sys.stderr)
+            sys.exit(1)
+
+    if args.open:
+        import webbrowser
+        webbrowser.open(args.github)
+
+if __name__ == "__main__":
+    main()
